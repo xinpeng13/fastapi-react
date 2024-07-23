@@ -8,6 +8,7 @@ import uuid
 from typing import Optional
 from queue import Queue
 from threading import Thread
+import random
 
 from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI()
@@ -40,9 +41,10 @@ websocket_connections = set()
 # Function to process images
 async def process_image(file_path: str):
     async with processing_lock:
+        await notify_clients(f"Processing start for {file_path}")
         await asyncio.sleep(30)  # Simulate image processing
         os.remove(file_path)  # Remove image after processing
-        await notify_clients(f"Processing complete for {file_path}")
+        # await notify_clients(f"Processing complete for {file_path}")
 
 # Worker thread to process images
 def worker():
@@ -78,10 +80,13 @@ async def get_video():
     video_files = [f for f in os.listdir(VIDEO_DIR) if f.endswith('.mp4')]
     if not video_files:
         return {"error": "No video available"}
+    i = random.randint(len(video_files))
+    video_path = os.path.join(VIDEO_DIR, video_files[i])
     
-    video_path = os.path.join(VIDEO_DIR, video_files[0])
     return FileResponse(video_path)
 
+
+# web socket
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
@@ -96,6 +101,21 @@ async def websocket_endpoint(websocket: WebSocket):
 async def notify_clients(message: str):
     for connection in websocket_connections:
         await connection.send_text(message)
+
+async def notify_clients_send_video(message: str):
+    video_files = [f for f in os.listdir(VIDEO_DIR) if f.endswith('.mp4')]
+    if not video_files:
+        return {"error": "No video available"}
+    video_path = os.path.join(VIDEO_DIR, video_files[i])
+
+    video_data = read_video_data(video_path)  
+    for connection in websocket_connections:
+        # await connection.send_text(message)
+        await connection.send_bytes(video_data)
+
+def read_video_data(video_path: str) -> bytes:
+    with open(video_path, "rb") as video_file:
+        return video_file.read()
 
 @app.on_event("shutdown")
 async def shutdown_event():
