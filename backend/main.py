@@ -1,6 +1,5 @@
 from fastapi import FastAPI, File, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
 import asyncio
 import os
 import shutil
@@ -80,7 +79,7 @@ async def get_video():
     video_files = [f for f in os.listdir(VIDEO_DIR) if f.endswith('.mp4')]
     if not video_files:
         return {"error": "No video available"}
-    i = random.randint(len(video_files))
+    i = random.randint(0, len(video_files) - 1)
     video_path = os.path.join(VIDEO_DIR, video_files[i])
     
     return FileResponse(video_path)
@@ -102,16 +101,6 @@ async def notify_clients(message: str):
     for connection in websocket_connections:
         await connection.send_text(message)
 
-async def notify_clients_send_video(message: str):
-    video_files = [f for f in os.listdir(VIDEO_DIR) if f.endswith('.mp4')]
-    if not video_files:
-        return {"error": "No video available"}
-    video_path = os.path.join(VIDEO_DIR, video_files[i])
-
-    video_data = read_video_data(video_path)  
-    for connection in websocket_connections:
-        # await connection.send_text(message)
-        await connection.send_bytes(video_data)
 
 def read_video_data(video_path: str) -> bytes:
     with open(video_path, "rb") as video_file:
@@ -119,5 +108,5 @@ def read_video_data(video_path: str) -> bytes:
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    image_queue.put(None)  # Stop the worker thread
+    image_queue.put(None)  
     thread.join()  # Wait for the worker thread to exit

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Container, Typography, Button, Box, LinearProgress, Card, CardContent, CardActions, Snackbar, Alert } from '@mui/material';
 import './App.css';
 
 interface Task {
@@ -14,13 +15,14 @@ const App: React.FC = () => {
     const [socket, setSocket] = useState<WebSocket | null>(null);
     const [tasks, setTasks] = useState<Task[]>([]);
 
+    const [snackbarOpen, setSnackbarOpen] = useState(false);
+    const [snackbarMessage, setSnackbarMessage] = useState('');
+    const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error'>('success');
+
     useEffect(() => {
-        // Connect to WebSocket server
         const ws = new WebSocket('ws://127.0.0.1:8000/ws');
         ws.onmessage = (event) => {
-           
-            addTask(event.data); // Add a new task for each new message
-            // alert(event.data); // Show an alert when receiving a message from the server
+            addTask(event.data);
         };
         setSocket(ws);
 
@@ -73,11 +75,11 @@ const App: React.FC = () => {
                     )
                 );
             } else {
-                alert('Failed to fetch video');
+                showSnackbar('Failed to fetch video', 'error');
             }
         } catch (error) {
             console.error('Error fetching video:', error);
-            alert('Error fetching video');
+            showSnackbar('Error fetching video', 'error');
         }
     };
 
@@ -101,44 +103,98 @@ const App: React.FC = () => {
         try {
             const response = await fetch("http://127.0.0.1:8000/upload/", requestOptions);
             const data = await response.json();
+            showSnackbar('Image submitted successfully! (Awaiting Process)', 'success');
             console.log(data);
         } catch (error) {
             console.error('Error uploading file:', error);
+            showSnackbar('Error uploading file', 'error');
         }
     };
 
+    const showSnackbar = (message: string, severity: 'success' | 'error') => {
+        setSnackbarMessage(message);
+        setSnackbarSeverity(severity);
+        setSnackbarOpen(true);
+    };
+
+    const handleCloseSnackbar = () => {
+        setSnackbarOpen(false);
+    };
+
     return (
-        <div className="App">
-            <h1>Image to Video magic tool!</h1>
-            <h2>You can upload multiple images, but the app can process one image at a time. Each image need 30 seconds to be finished.</h2>
-            <input onChange={imageUploadHandler} type="file" accept="image/*" multiple />
-            <button onClick={handleSubmit}>Upload Image</button>
-            <div>
+        <Container maxWidth="md">
+            <Typography variant="h4" gutterBottom>Image to Video Magic Tool</Typography>
+            <Typography variant="h6" gutterBottom>
+                You can upload multiple images, but the app can process one image at a time. Each image needs 30 seconds to be finished.
+            </Typography>
+            <input
+                onChange={imageUploadHandler}
+                type="file"
+                accept="image/*"
+                multiple
+                style={{ display: 'none' }}
+                id="file-upload"
+            />
+            <label htmlFor="file-upload">
+                <Button variant="contained" color="primary" component="span">
+                    Select Image
+                </Button>
+            </label>
+            <Button onClick={handleSubmit} variant="contained" color="secondary" style={{ marginLeft: '10px' }}>
+                Upload
+            </Button>
+            <Box mt={4}>
                 {tasks.map((task) => (
-                    <div key={task.id} style={{ marginBottom: '20px' }}>
-                        <div>
-                                <div>{task.message}</div>
-                                <div>Progress: {Math.round(task.progress)}%</div>
-                                <progress value={task.progress} max="100"></progress>
-                            </div>
+                    <Card key={task.id} variant="outlined" style={{ marginBottom: '20px' }}>
+                        <CardContent>
+                            <Typography variant="body1">{task.message}</Typography>
+                            {task.isProgressVisible ? (
+                                <Box display="flex" alignItems="center">
+                                    <Box width="100%" mr={1}>
+                                        <LinearProgress variant="determinate" value={task.progress} />
+                                    </Box>
+                                    <Box minWidth={35}>
+                                        <Typography variant="body2" color="textSecondary">{`${Math.round(task.progress)}%`}</Typography>
+                                    </Box>
+                                </Box>
+                            ) : (
+                                <Typography variant="body2" color="textSecondary">Processing complete</Typography>
+                            )}
+                        </CardContent>
                         {task.videoUrl && (
-                            <div>
-                                <h2>Video Generate Complete!</h2>
-                                <video
-                                    width="600"
-                                    controls
-                                    controlsList="nodownload"
-                                    onContextMenu={(e) => e.preventDefault()}
-                                >
-                                    <source src={task.videoUrl} type="video/mp4" />
-                                    Your browser does not support the video tag.
-                                </video>
-                            </div>
+                            <CardActions>
+                                <Box width="100%">
+                                    <Typography variant="h6">Video Generate Complete!</Typography>
+                                    <video
+                                        width="100%"
+                                        controls
+                                        controlsList="nodownload"
+                                        onContextMenu={(e) => e.preventDefault()}
+                                    >
+                                        <source src={task.videoUrl} type="video/mp4" />
+                                    </video>
+                                </Box>
+                            </CardActions>
                         )}
-                    </div>
+                    </Card>
                 ))}
-            </div>
-        </div>
+            </Box>
+            <Snackbar
+                open={snackbarOpen}
+                autoHideDuration={6000}
+                onClose={handleCloseSnackbar}
+                message={snackbarMessage}
+                action={
+                    <Button color="inherit" onClick={handleCloseSnackbar}>
+                        Close
+                    </Button>
+                }
+            >
+                <Alert onClose={handleCloseSnackbar} severity={snackbarSeverity}>
+                    {snackbarMessage}
+                </Alert>
+            </Snackbar>
+        </Container>
     );
 };
 
